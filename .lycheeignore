@@ -1,0 +1,3 @@
+# Own repos: checked by hand after each push (GitHub rate-limits link checkers, and later repos
+# don't exist yet when an earlier one is pushed).
+https://github.com/SaurabhTiwari95/.*

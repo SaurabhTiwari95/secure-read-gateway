@@ -1,0 +1,63 @@
+# Local stack: PostgreSQL + Redis + one-off migrate job + the API.
+# Secrets come from .env (copy .env.example). Nothing is exposed beyond 127.0.0.1.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: acme
+      POSTGRES_USER: acme_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U acme_admin -d acme"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 20
+
+  migrate:
+    build: .
+    command: ["python", "-m", "app.migrate", "--seed"]
+    environment:
+      ADMIN_DATABASE_URL: postgresql://acme_admin:${POSTGRES_PASSWORD}@db:5432/acme
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://gateway_app:${APP_DB_PASSWORD}@db:5432/acme
+      REDIS_URL: redis://redis:6379/0
+      CLIENT_KEYS: ${CLIENT_KEYS:?set CLIENT_KEYS in .env}
+      ALLOWED_NETWORKS: ${ALLOWED_NETWORKS:-["127.0.0.1/32"]}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-120}
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  dbdata:
