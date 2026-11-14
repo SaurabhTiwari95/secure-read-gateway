@@ -27,7 +27,7 @@ jobs:
           BLOCKED_WORDS: ${{ secrets.BLOCKED_WORDS }}
         run: python scripts/prepublish_check.py
       - name: Secret scan (gitleaks, full history)
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Known vulnerabilities in dependencies
